@@ -114,7 +114,7 @@ export const VideoGrid: React.FC = () => {
              </div>
              <div className="flex items-center gap-1 bg-black/60 px-1.5 py-0.5 rounded text-[8px] font-mono text-red-500">
                 <div className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse"></div>
-                录制
+                录制中
              </div>
           </div>
 

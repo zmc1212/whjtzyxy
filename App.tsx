@@ -6,9 +6,6 @@ import {
   Sun, 
   ShieldAlert, 
   Wifi, 
-  Clock, 
-  Globe,
-  Wind,
   Video,
   FileText,
   Flame,
@@ -38,13 +35,6 @@ const generatePowerData = (): ChartDataPoint[] => {
     value2: 25 + Math.random() * 5
   }));
 };
-
-const generateACStatusData = () => [
-  { name: '运行中', value: 85 },
-  { name: '待机', value: 12 },
-  { name: '维护中', value: 3 },
-  { name: '故障', value: 0 },
-];
 
 const generateLightingData = () => [
   { name: '节能', value: 75 },
@@ -118,7 +108,7 @@ const App: React.FC = () => {
   const renderOverviewLeft = () => (
     <>
       <div className="pointer-events-auto flex-[2] min-h-[260px]">
-        <SciFiCard title="空调智控系统" icon={<Wind />} className="h-full">
+        <SciFiCard title="空调智控系统" icon={<React.Fragment><Thermometer className="mr-1" /></React.Fragment>} className="h-full">
           <div className="flex flex-col h-full gap-3">
              {/* Subsystem Grid based on requirements */}
              <div className="grid grid-cols-2 gap-2 h-full">

@@ -1,178 +1,248 @@
-import React, { useEffect, useState } from 'react';
+import React, { useRef, useMemo, useState } from 'react';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
+import * as THREE from 'three';
 import { TwinMode } from '../types';
+import { Zap, Video, Droplets, Shield, Radio } from 'lucide-react';
+
+// --- Types ---
+
+interface MarkerConfig {
+  id: string;
+  position: [number, number, number];
+  type: 'power' | 'security' | 'water';
+  label: string;
+  visibleModes: TwinMode[];
+}
+
+const MARKERS: MarkerConfig[] = [
+  // Power
+  { id: 'p1', position: [0, 25, 0], type: 'power', label: '主变电站', visibleModes: [TwinMode.OVERVIEW, TwinMode.ENERGY] },
+  { id: 'p2', position: [25, 30, -25], type: 'power', label: '光伏阵列 A', visibleModes: [TwinMode.ENERGY] },
+  { id: 'p3', position: [-25, 30, -25], type: 'power', label: '光伏阵列 B', visibleModes: [TwinMode.ENERGY] },
+  // Water
+  { id: 'w1', position: [30, 20, 30], type: 'water', label: '智能灌溉点', visibleModes: [TwinMode.OVERVIEW] },
+  { id: 'w2', position: [0, 15, 50], type: 'water', label: '开水房', visibleModes: [TwinMode.OVERVIEW] },
+  // Security
+  { id: 's1', position: [20, 5, 20], type: 'security', label: '监控 #01', visibleModes: [TwinMode.SECURITY] },
+  { id: 's2', position: [-20, 5, 20], type: 'security', label: '监控 #02', visibleModes: [TwinMode.SECURITY] },
+  { id: 's3', position: [20, 5, -20], type: 'security', label: '监控 #03', visibleModes: [TwinMode.SECURITY] },
+  { id: 's4', position: [-20, 5, -20], type: 'security', label: '监控 #04', visibleModes: [TwinMode.SECURITY] },
+  { id: 's5', position: [0, 5, 60], type: 'security', label: '门禁系统', visibleModes: [TwinMode.SECURITY] },
+];
+
+// --- Sub-components ---
+
+// Native Building with Edges
+const Building = ({ position, args, color, label }: { position: [number, number, number], args: [number, number, number], color: string, label?: string }) => {
+  const geometry = useMemo(() => new THREE.BoxGeometry(...args), [args]);
+  const edgesGeometry = useMemo(() => new THREE.EdgesGeometry(geometry), [geometry]);
+
+  return (
+    <group position={position}>
+      {/* Main Body */}
+      <mesh geometry={geometry}>
+        <meshStandardMaterial 
+          color={color} 
+          transparent 
+          opacity={0.9} 
+          metalness={0.6} 
+          roughness={0.2} 
+        />
+      </mesh>
+      {/* Glowing Edges */}
+      <lineSegments geometry={edgesGeometry}>
+        <lineBasicMaterial color="#00f3ff" transparent opacity={0.4} />
+      </lineSegments>
+      
+      {/* Simple Roof Detail */}
+      <mesh position={[0, args[1]/2 + 0.1, 0]} rotation={[-Math.PI/2, 0, 0]}>
+         <planeGeometry args={[args[0] * 0.8, args[2] * 0.8]} />
+         <meshBasicMaterial color="#00f3ff" wireframe opacity={0.2} transparent />
+      </mesh>
+    </group>
+  );
+};
+
+// Component to track 3D positions and update DOM elements
+const MarkerTracker = ({ markers, markerRefs, mode }: { markers: MarkerConfig[], markerRefs: React.MutableRefObject<(HTMLDivElement | null)[]>, mode: TwinMode }) => {
+  const { camera, size } = useThree();
+  const vec = useMemo(() => new THREE.Vector3(), []);
+
+  useFrame(() => {
+    markers.forEach((marker, index) => {
+      const el = markerRefs.current[index];
+      if (!el) return;
+
+      // Visibility Check
+      if (!marker.visibleModes.includes(mode)) {
+        el.style.opacity = '0';
+        el.style.pointerEvents = 'none';
+        return;
+      }
+
+      // Projection
+      vec.set(...marker.position);
+      vec.project(camera);
+
+      // Check if behind camera or out of view bounds (loose check)
+      if (vec.z > 1 || Math.abs(vec.x) > 1.2 || Math.abs(vec.y) > 1.2) {
+        el.style.opacity = '0';
+        return;
+      }
+
+      // Convert to screen coords
+      const x = (vec.x * 0.5 + 0.5) * size.width;
+      const y = (-(vec.y * 0.5) + 0.5) * size.height;
+
+      // Update DOM
+      el.style.opacity = '1';
+      el.style.transform = `translate3d(${x}px, ${y}px, 0) translate(-50%, -100%)`;
+      el.style.zIndex = Math.floor((1 - vec.z) * 1000).toString();
+    });
+  });
+
+  return null;
+};
+
+// Scene Content with Auto-Rotation
+const SceneContent = () => {
+  const groupRef = useRef<THREE.Group>(null);
+  
+  useFrame((state, delta) => {
+    if (groupRef.current) {
+      groupRef.current.rotation.y += delta * 0.1; // Slow rotation
+    }
+  });
+
+  return (
+    <group ref={groupRef}>
+       {/* Floor */}
+      <gridHelper args={[200, 40, 0x06b6d4, 0x112244]} position={[0, -0.1, 0]} />
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.2, 0]}>
+        <planeGeometry args={[200, 200]} />
+        <meshBasicMaterial color="#030712" transparent opacity={0.8} />
+      </mesh>
+
+       {/* Buildings */}
+      <Building position={[0, 10, 0]} args={[20, 20, 20]} color="#0b1628" label="行政楼" />
+      <Building position={[30, 8, 30]} args={[15, 16, 15]} color="#0b1628" label="图书馆" />
+      <Building position={[-30, 6, 30]} args={[15, 12, 15]} color="#0b1628" label="实验楼" />
+      <Building position={[-25, 12, -25]} args={[18, 24, 18]} color="#0b1628" label="教学楼A" />
+      <Building position={[25, 12, -25]} args={[18, 24, 18]} color="#0b1628" label="教学楼B" />
+      <Building position={[0, 5, 50]} args={[40, 10, 10]} color="#0b1628" label="体育馆" />
+    </group>
+  );
+};
+
+// --- Main Component ---
 
 interface CentralSceneProps {
   mode: TwinMode;
 }
 
 export const CentralScene: React.FC<CentralSceneProps> = ({ mode }) => {
-  const [rotation, setRotation] = useState(0);
-
-  // Auto-rotate effect
-  useEffect(() => {
-    let r = 0;
-    const interval = setInterval(() => {
-      r += 0.1;
-      setRotation(r);
-    }, 20);
-    return () => clearInterval(interval);
-  }, []);
-
-  // Holographic Building
-  const renderBuilding = (h: number, x: number, z: number, w: number, d: number, colorBase: string, label?: string) => {
-    const isSecurity = mode === TwinMode.SECURITY;
-    const color = isSecurity ? 'red-500' : colorBase;
-    const glowColor = isSecurity ? 'rgba(239,68,68,0.5)' : 'rgba(6,182,212,0.5)';
-    
-    return (
-      <div 
-        className="absolute preserve-3d transition-all duration-1000 group"
-        style={{
-          transform: `translateX(${x}px) translateZ(${z}px) translateY(${-h/2}px)`,
-          width: `${w}px`,
-          height: `${h}px`,
-        }}
-      >
-        {/* Internal Glow Core */}
-        <div className="absolute inset-0 blur-xl opacity-30 animate-pulse-fast" style={{ background: glowColor, transform: 'translateY(20px)' }}></div>
-
-        {/* Walls */}
-        <div className={`absolute border border-${color}/40 bg-${color}/10 backdrop-blur-[1px] shadow-[0_0_15px_rgba(0,0,0,0.5)_inset]`} style={{ width: w, height: h, transform: `rotateY(0deg) translateZ(${d/2}px)` }}>
-           {/* Tech lines on building */}
-           <div className={`w-full h-[1px] bg-${color}/50 mt-4`}></div>
-           <div className={`w-full h-[1px] bg-${color}/50 mt-8`}></div>
-        </div>
-        <div className={`absolute border border-${color}/40 bg-${color}/10 backdrop-blur-[1px] shadow-[0_0_15px_rgba(0,0,0,0.5)_inset]`} style={{ width: w, height: h, transform: `rotateY(180deg) translateZ(${d/2}px)` }} />
-        <div className={`absolute border border-${color}/40 bg-${color}/10 backdrop-blur-[1px] shadow-[0_0_15px_rgba(0,0,0,0.5)_inset]`} style={{ width: d, height: h, transform: `rotateY(90deg) translateZ(${w/2}px)` }}>
-           <div className={`w-full h-[1px] bg-${color}/50 mt-6`}></div>
-        </div>
-        <div className={`absolute border border-${color}/40 bg-${color}/10 backdrop-blur-[1px] shadow-[0_0_15px_rgba(0,0,0,0.5)_inset]`} style={{ width: d, height: h, transform: `rotateY(-90deg) translateZ(${w/2}px)` }} />
-        
-        {/* Roof */}
-        <div className={`absolute border border-${color}/60 bg-${color}/30 overflow-hidden`} style={{ width: w, height: d, transform: `rotateX(90deg) translateZ(${h/2}px)` }}>
-           <div className="w-full h-full bg-grid-pattern opacity-50"></div>
-           {/* Roof Logo/Marker */}
-           <div className={`absolute top-1/2 left-1/2 w-4 h-4 -translate-x-1/2 -translate-y-1/2 border-2 border-${color} rounded-full`}></div>
-        </div>
-
-        {/* Floating Label (Always facing somewhat towards viewer logic simplified) */}
-        {label && (
-          <div 
-             className="absolute -top-12 left-1/2 -translate-x-1/2 text-[10px] text-white whitespace-nowrap bg-black/60 px-2 py-1 border border-white/20 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"
-             style={{ transform: `rotateY(${-rotation}deg)` }} // Counter-rotate to face camera
-          >
-             {label}
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  const themeColor = mode === TwinMode.SECURITY ? 'text-red-400' : 'text-neon-cyan';
+  const markerRefs = useRef<(HTMLDivElement | null)[]>([]);
 
   return (
-    <div className="relative w-full h-full overflow-hidden flex items-center justify-center perspective-container">
-      
-      {/* 3D Scene Container */}
-      <div 
-        className="preserve-3d relative w-full h-full flex items-center justify-center transition-transform duration-1000 ease-out"
-        style={{ 
-          transform: `rotateX(60deg) rotateZ(${rotation}deg) scale3d(0.8, 0.8, 0.8)` 
-        }}
+    <div className="relative w-full h-full">
+      <Canvas 
+        shadows 
+        dpr={[1, 2]} 
+        camera={{ position: [60, 50, 60], fov: 45 }}
       >
-        {/* Dynamic Floor Grid */}
-        <div 
-          className="absolute w-[2000px] h-[2000px] rounded-full opacity-40 animate-spin-slow"
-          style={{
-            background: `
-              radial-gradient(circle at center, rgba(0,0,0,0) 0%, rgba(3,7,18,0.8) 70%),
-              repeating-radial-gradient(circle at center, rgba(6,182,212,0.15) 0, transparent 1px, transparent 40px),
-              linear-gradient(rgba(6,182,212,0.1) 1px, transparent 1px),
-              linear-gradient(90deg, rgba(6,182,212,0.1) 1px, transparent 1px)
-            `,
-            backgroundSize: '100% 100%, 100% 100%, 80px 80px, 80px 80px',
-            transform: 'translateZ(-40px)',
-            animationDuration: '120s'
-          }}
-        />
-
-        {/* Holographic Rings */}
-        <div className="absolute w-[800px] h-[800px] border border-dashed border-cyan-500/20 rounded-full animate-spin-reverse-slow" style={{ transform: 'translateZ(-30px)' }}></div>
-        <div className="absolute w-[600px] h-[600px] border border-cyan-500/10 rounded-full" style={{ transform: 'translateZ(-30px)' }}></div>
+        <color attach="background" args={['#030712']} />
         
-        {/* Rotating Data Ring with Particles */}
-        <div className="absolute w-[1200px] h-[1200px] rounded-full animate-spin-slow border border-white/5" style={{ transform: 'translateZ(-20px)' }}>
-            <div className="absolute top-0 left-1/2 w-2 h-2 bg-cyan-400 rounded-full blur-[2px]"></div>
-            <div className="absolute bottom-0 left-1/2 w-2 h-2 bg-purple-400 rounded-full blur-[2px]"></div>
-            <div className="absolute left-0 top-1/2 w-2 h-2 bg-blue-400 rounded-full blur-[2px]"></div>
-        </div>
-
-        {/* Central Hub - Teaching Building */}
-        {renderBuilding(200, 0, 0, 80, 80, 'cyan-500', '行政中心')}
+        {/* Lights */}
+        <ambientLight intensity={0.5} color="#06b6d4" />
+        <pointLight position={[100, 100, 100]} intensity={1} color="#ffffff" />
         
-        {/* Ring 1 Buildings - Library & Admin */}
-        {renderBuilding(100, 120, 0, 40, 40, 'blue-500', '图书馆')}
-        {renderBuilding(110, -120, 0, 40, 40, 'blue-500', '科技馆')}
-        {renderBuilding(90, 0, 120, 40, 40, 'blue-500', '艺术楼')}
-        {renderBuilding(130, 0, -120, 40, 40, 'blue-500', '信息中心')}
+        {/* Simple Stars manually */}
+        <points>
+           <bufferGeometry>
+              <bufferAttribute 
+                attach="attributes-position"
+                count={1000}
+                array={useMemo(() => {
+                   const pos = new Float32Array(1000 * 3);
+                   for(let i=0;i<3000;i++) pos[i] = (Math.random() - 0.5) * 300;
+                   return pos;
+                }, [])}
+                itemSize={3}
+              />
+           </bufferGeometry>
+           <pointsMaterial size={1} color="white" transparent opacity={0.6} sizeAttenuation={false} />
+        </points>
 
-        {/* Ring 2 Buildings - Dorms & Gym */}
-        {renderBuilding(60, 180, 60, 30, 30, 'indigo-500')}
-        {renderBuilding(50, -180, -70, 30, 30, 'indigo-500')}
-        {renderBuilding(75, 80, 180, 30, 30, 'indigo-500')}
-        {renderBuilding(65, -70, 190, 30, 30, 'indigo-500')}
+        <SceneContent />
+        <MarkerTracker markers={MARKERS} markerRefs={markerRefs} mode={mode} />
+      </Canvas>
 
-        {/* Vertical Scanning Laser */}
-        <div className="absolute w-[1000px] h-[1000px] bg-gradient-to-t from-cyan-500/0 via-cyan-500/10 to-cyan-500/0 animate-scan pointer-events-none" 
-             style={{ transform: 'rotateX(-90deg) translateZ(100px)', opacity: 0.3 }}></div>
+      {/* HTML Overlay for Markers */}
+      <div className="absolute inset-0 pointer-events-none overflow-hidden">
+        {MARKERS.map((marker, index) => {
+          let Icon = Zap;
+          let colorClass = 'text-yellow-400 border-yellow-500 bg-yellow-900/50';
+          
+          if (marker.type === 'security') {
+            Icon = Video;
+            colorClass = 'text-red-400 border-red-500 bg-red-900/50';
+          } else if (marker.type === 'water') {
+            Icon = Droplets;
+            colorClass = 'text-blue-400 border-blue-500 bg-blue-900/50';
+          }
+
+          return (
+            <div 
+              key={marker.id}
+              ref={(el) => { markerRefs.current[index] = el; }}
+              className="absolute top-0 left-0 flex flex-col items-center transition-opacity duration-300 group pointer-events-auto cursor-pointer"
+              style={{ opacity: 0, willChange: 'transform' }}
+            >
+               {/* Icon Marker */}
+              <div className={`p-1.5 rounded-full border shadow-[0_0_15px_currentColor] backdrop-blur-sm ${colorClass} animate-pulse-fast`}>
+                <Icon size={16} />
+              </div>
+              
+              {/* Stem */}
+              <div className={`h-8 w-px ${colorClass.split(' ')[2]}`}></div>
+              
+              {/* Label (Shows on Hover) */}
+              <div className={`
+                absolute bottom-12 opacity-0 group-hover:opacity-100 transition-all duration-300
+                px-2 py-1 rounded bg-black/80 border ${colorClass.split(' ')[1]} backdrop-blur text-[10px] text-white whitespace-nowrap
+              `}>
+                {marker.label}
+              </div>
+            </div>
+          );
+        })}
       </div>
 
-      {/* --- HUD OVERLAYS (2D Layer on top of 3D) --- */}
+      {/* HUD Overlay - Static */}
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none w-[500px] h-[500px]">
+        <div className="absolute inset-0 border border-white/5 rounded-full animate-[spin_60s_linear_infinite]"></div>
+        <div className="absolute inset-4 border border-dashed border-cyan-500/20 rounded-full animate-[spin_40s_linear_infinite_reverse]"></div>
+        
+        {/* Center Label */}
+        <div className="absolute bottom-20 left-1/2 -translate-x-1/2 text-center">
+            <div className="text-[10px] text-cyan-500 uppercase tracking-[0.2em] mb-1">目标区域</div>
+            <div className="text-xl font-sci text-white drop-shadow-[0_0_5px_rgba(6,182,212,0.8)]">综合教学区</div>
+        </div>
+      </div>
       
-      {/* Central Target Reticle */}
-      <div className="absolute pointer-events-none opacity-40">
-        <div className="w-[400px] h-[400px] border border-white/10 rounded-full flex items-center justify-center">
-           <div className="w-[380px] h-[380px] border border-dashed border-cyan-500/20 rounded-full animate-spin-slow"></div>
-           {/* Crosshair */}
-           <div className="absolute w-4 h-4 border-l border-t border-cyan-400 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"></div>
-           <div className="absolute w-4 h-4 border-r border-b border-cyan-400 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"></div>
-        </div>
-      </div>
-
-      {/* Floating Info Panels */}
-      <div className="absolute top-32 left-1/2 -translate-x-1/2 flex items-center gap-4 bg-black/40 backdrop-blur-md px-6 py-2 rounded-full border border-cyan-500/20 shadow-[0_0_20px_rgba(6,182,212,0.2)]">
-        <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse shadow-[0_0_10px_#22c55e]"></div>
-        <div className="flex flex-col items-start">
-           <span className="text-[10px] text-gray-400 uppercase tracking-widest leading-none mb-1">目标区域</span>
-           <span className={`font-sci font-bold text-lg leading-none ${themeColor}`}>教学主楼 A-7</span>
-        </div>
-        <div className="h-6 w-px bg-white/10 mx-2"></div>
-        <div className="font-mono text-xs text-cyan-200">
-           LAT: 34.2104° N<br/>LON: 108.9321° E
-        </div>
-      </div>
-
-      <div className="absolute bottom-24 flex gap-20 pointer-events-none opacity-80">
-        <div className="text-center group">
-          <p className="text-[10px] uppercase text-gray-500 group-hover:text-cyan-400 transition-colors">总用电负荷</p>
-          <div className="flex items-baseline justify-center gap-1">
-             <p className="font-sci text-2xl text-white tracking-wider">85</p>
-             <span className="text-xs text-cyan-500">%</span>
+      {/* Stats HUD */}
+      <div className="absolute bottom-32 left-10 pointer-events-none">
+          <div className="flex gap-4">
+              <div className="text-center">
+                  <div className="text-[9px] text-gray-500 mb-1">总负荷</div>
+                  <div className="text-2xl font-sci text-cyan-400">85<span className="text-xs">%</span></div>
+              </div>
+              <div className="w-px h-8 bg-white/10"></div>
+               <div className="text-center">
+                  <div className="text-[9px] text-gray-500 mb-1">电网稳定性</div>
+                  <div className="text-2xl font-sci text-purple-400">99<span className="text-xs">%</span></div>
+              </div>
           </div>
-          <div className="w-24 h-1 bg-gray-800 mt-1 rounded-full overflow-hidden">
-             <div className="h-full bg-cyan-500 w-[85%] animate-pulse"></div>
-          </div>
-        </div>
-        <div className="text-center group">
-          <p className="text-[10px] uppercase text-gray-500 group-hover:text-purple-400 transition-colors">电网稳定性</p>
-          <div className="flex items-baseline justify-center gap-1">
-             <p className="font-sci text-2xl text-white tracking-wider">99.9</p>
-             <span className="text-xs text-purple-500">%</span>
-          </div>
-          <div className="w-24 h-1 bg-gray-800 mt-1 rounded-full overflow-hidden">
-             <div className="h-full bg-purple-500 w-[99%]"></div>
-          </div>
-        </div>
       </div>
     </div>
   );
