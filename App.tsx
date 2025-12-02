@@ -19,7 +19,14 @@ import {
   Cpu,
   Radio,
   Sprout,
-  Coffee
+  Coffee,
+  Wind,
+  Gauge,
+  Trees,
+  UserCheck,
+  MapPin,
+  Bell,
+  Lock
 } from 'lucide-react';
 import { SciFiCard } from './components/SciFiCard';
 import { PowerChart, DeviceStatusChart, EfficiencyChart, VideoGrid } from './components/Charts';
@@ -72,6 +79,19 @@ const mockMetrics: MetricData[] = [
   { name: '总用电负荷', value: 3420, trend: 'up' },
   { name: '光伏发电量', value: 1240, trend: 'stable' },
   { name: '今日节水量', value: 78, trend: 'up' },
+];
+
+const mockPatrols = [
+  { id: 1, name: '巡逻队 A', status: 'on-duty', location: '教学楼区域', battery: 85 },
+  { id: 2, name: '巡逻队 B', status: 'on-duty', location: '宿舍区北门', battery: 72 },
+  { id: 3, name: '无人机组', status: 'charging', location: '机库', battery: 100 },
+];
+
+const optimizationLogs = [
+  { time: '14:30', action: '教学楼A区光照充足，自动关闭走廊灯光', saving: '12 kWh' },
+  { time: '14:15', action: '空调主机负荷优化，调整出水温度', saving: '45 kWh' },
+  { time: '13:45', action: '检测到无人教室，切断非必要电源', saving: '8 kWh' },
+  { time: '13:00', action: '光伏发电峰值，优先使用清洁能源', saving: 'Carbon -15kg' },
 ];
 
 const App: React.FC = () => {
@@ -387,34 +407,49 @@ const App: React.FC = () => {
   const renderEnergyLeft = () => (
     <>
       <div className="pointer-events-auto flex-[2]">
-        <SciFiCard title="能耗深度分析" icon={<BarChart3 />} className="h-full">
+        <SciFiCard title="全校能耗趋势" icon={<BarChart3 />} className="h-full">
            <div className="flex flex-col h-full gap-4">
               <div className="flex gap-2">
-                 {['教学楼', '宿舍楼', '图书馆'].map((label, idx) => (
+                 {['教学区', '宿舍区', '行政区'].map((label, idx) => (
                    <div key={label} className="flex-1 bg-gradient-to-b from-white/5 to-transparent p-2 border-t border-white/10 text-center group hover:bg-white/10 transition-colors cursor-pointer">
                      <div className="text-[10px] text-gray-500 group-hover:text-cyan-400">{label}</div>
                      <div className="text-lg font-sci text-white">{1200 + idx * 350} <span className="text-[10px] text-gray-600">kWh</span></div>
                    </div>
                  ))}
               </div>
-              <div className="flex-1 -ml-2">
+              <div className="flex-1 -ml-2 relative">
                  <PowerChart data={powerData} />
+                 <div className="absolute top-2 right-4 text-[9px] flex gap-2">
+                    <span className="flex items-center gap-1 text-cyan-400"><div className="w-2 h-0.5 bg-cyan-400"></div> 实时</span>
+                    <span className="flex items-center gap-1 text-purple-400"><div className="w-2 h-0.5 bg-purple-400"></div> 预测</span>
+                 </div>
               </div>
            </div>
         </SciFiCard>
       </div>
       <div className="pointer-events-auto flex-1">
-         <SciFiCard title="碳排放追踪" icon={<Leaf />} className="h-full">
-            <div className="flex h-full items-center gap-4">
-               <div className="flex-1 h-full">
-                  <DeviceStatusChart data={[
-                    {name: '减排', value: 340},
-                    {name: '排放', value: 890}
-                  ]} />
+         <SciFiCard title="电能质量监测" icon={<Gauge />} className="h-full">
+            <div className="flex h-full items-center justify-around">
+               <div className="relative w-20 h-20 flex items-center justify-center">
+                  <div className="absolute inset-0 rounded-full border-4 border-white/5"></div>
+                  <div className="absolute inset-0 rounded-full border-4 border-cyan-500 border-t-transparent -rotate-45"></div>
+                  <div className="text-center">
+                     <div className="text-lg font-sci text-white">50.0</div>
+                     <div className="text-[8px] text-gray-500">频率 Hz</div>
+                  </div>
                </div>
-               <div className="w-24 text-center border-l border-dashed border-white/10 pl-4">
-                  <div className="text-3xl font-sci text-green-400">12%</div>
-                  <div className="text-[10px] text-gray-500 uppercase mt-1">同比下降</div>
+               <div className="relative w-20 h-20 flex items-center justify-center">
+                  <div className="absolute inset-0 rounded-full border-4 border-white/5"></div>
+                  <div className="absolute inset-0 rounded-full border-4 border-green-500 border-t-transparent rotate-12"></div>
+                  <div className="text-center">
+                     <div className="text-lg font-sci text-white">0.98</div>
+                     <div className="text-[8px] text-gray-500">功率因数</div>
+                  </div>
+               </div>
+               <div className="flex flex-col gap-1 text-[10px] text-gray-400">
+                  <div className="flex justify-between gap-4"><span>电压偏差</span><span className="text-white">+1.2%</span></div>
+                  <div className="flex justify-between gap-4"><span>谐波畸变</span><span className="text-white">2.1%</span></div>
+                  <div className="flex justify-between gap-4"><span>三相不平</span><span className="text-green-400">0.5%</span></div>
                </div>
             </div>
          </SciFiCard>
@@ -425,34 +460,59 @@ const App: React.FC = () => {
   const renderEnergyRight = () => (
     <>
       <div className="pointer-events-auto flex-1">
-         <SciFiCard title="能源结构占比" icon={<Layers />} className="h-full">
-            <div className="flex h-full items-center">
-               <EfficiencyChart data={generateEnergyComposition()} />
-               <div className="space-y-2 text-[10px] font-mono uppercase text-gray-400">
-                  <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-sm bg-cyan-500"></div>市电 65%</div>
-                  <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-sm bg-blue-500"></div>光伏 30%</div>
-                  <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-sm bg-indigo-500"></div>其他 5%</div>
+         <SciFiCard title="双碳目标执行" icon={<Leaf />} className="h-full">
+            <div className="flex flex-col h-full gap-2">
+               <div className="flex items-end justify-between border-b border-white/10 pb-2">
+                  <div>
+                     <div className="text-[10px] text-gray-500">本月碳减排量</div>
+                     <div className="text-2xl font-sci text-green-400">14.5 <span className="text-sm">吨</span></div>
+                  </div>
+                  <div className="text-right">
+                     <div className="flex items-center gap-1 text-[10px] text-gray-400">
+                        <Trees size={12} className="text-green-500" /> 等效植树
+                     </div>
+                     <div className="text-xl font-sci text-white">302 <span className="text-sm">棵</span></div>
+                  </div>
+               </div>
+               <div className="flex-1 flex items-center gap-4">
+                  <div className="w-1/2 h-full">
+                     <EfficiencyChart data={[
+                        {name: '已完成', value: 65},
+                        {name: '剩余', value: 35}
+                     ]} />
+                  </div>
+                  <div className="w-1/2 space-y-2">
+                     <div className="text-[10px] text-gray-400 uppercase tracking-wider">减排贡献源</div>
+                     <div className="w-full bg-white/5 rounded-full h-1.5 overflow-hidden">
+                        <div className="h-full bg-blue-500 w-[60%]"></div>
+                     </div>
+                     <div className="flex justify-between text-[9px] text-gray-500"><span>光伏替代</span><span>60%</span></div>
+                     <div className="w-full bg-white/5 rounded-full h-1.5 overflow-hidden">
+                        <div className="h-full bg-green-500 w-[25%]"></div>
+                     </div>
+                     <div className="flex justify-between text-[9px] text-gray-500"><span>节能改造</span><span>25%</span></div>
+                  </div>
                </div>
             </div>
          </SciFiCard>
       </div>
-      <div className="pointer-events-auto flex-[2]">
-         <SciFiCard title="设备能效排行" icon={<Zap />} className="h-full">
-            <div className="space-y-3 p-1">
-               {[1,2,3,4,5].map((i) => (
-                  <div key={i} className="flex items-center gap-3 group">
-                     <span className={`w-5 h-5 flex items-center justify-center text-[10px] font-bold border ${i < 4 ? 'border-cyan-500 text-cyan-400' : 'border-gray-700 text-gray-600'}`}>0{i}</span>
-                     <div className="flex-1">
-                        <div className="flex justify-between text-[10px] mb-1">
-                           <span className="text-gray-300">空调机组_#{i+10}</span>
-                           <span className="font-mono text-cyan-400">{95 - i*4}% 能效</span>
-                        </div>
-                        <div className="w-full h-1 bg-gray-800">
-                           <div className="h-full bg-gradient-to-r from-cyan-600 to-cyan-400 group-hover:shadow-[0_0_10px_#06b6d4] transition-shadow duration-300" style={{ width: `${95 - i*4}%`}}></div>
-                        </div>
+      <div className="pointer-events-auto flex-[1.5]">
+         <SciFiCard title="智能调优日志" icon={<Cpu />} className="h-full">
+            <div className="overflow-hidden h-full flex flex-col">
+               <div className="flex justify-between text-[9px] text-gray-500 px-2 mb-1 border-b border-white/5 pb-1">
+                  <span>时间</span>
+                  <span>执行策略</span>
+                  <span>预计节约</span>
+               </div>
+               <div className="flex-1 overflow-y-auto custom-scrollbar">
+                  {optimizationLogs.map((log, i) => (
+                     <div key={i} className="flex justify-between items-center text-[10px] p-2 hover:bg-white/5 transition-colors border-l-2 border-transparent hover:border-cyan-500">
+                        <span className="font-mono text-cyan-400/80">{log.time}</span>
+                        <span className="text-gray-300 flex-1 px-2 truncate">{log.action}</span>
+                        <span className="text-green-400 font-sci">{log.saving}</span>
                      </div>
-                  </div>
-               ))}
+                  ))}
+               </div>
             </div>
          </SciFiCard>
       </div>
@@ -467,18 +527,27 @@ const App: React.FC = () => {
          </SciFiCard>
       </div>
       <div className="pointer-events-auto flex-1">
-         <SciFiCard title="门禁通行日志" icon={<FileText />} className="h-full">
-             <div className="overflow-y-auto h-full pr-1 space-y-1">
-                {mockSecurityLogs.map(log => (
-                   <div key={log.id} className="flex justify-between items-center text-[10px] p-2 bg-white/5 border-l-2 border-transparent hover:border-cyan-500 transition-colors">
-                      <div>
-                         <div className="text-cyan-100 font-mono">{log.location}</div>
-                         <div className="text-gray-500">{log.time}</div>
-                      </div>
-                      <div className={`px-2 py-0.5 rounded-sm ${log.status === 'alert' ? 'bg-red-500/20 text-red-400' : 'bg-green-500/10 text-green-400'}`}>
-                         {log.event}
-                      </div>
-                   </div>
+         <SciFiCard title="周界防范系统" icon={<Lock />} className="h-full">
+             <div className="grid grid-cols-2 gap-2 h-full">
+                {[
+                  { name: '北区围墙', status: 'normal', type: '红外对射' },
+                  { name: '东门闸机', status: 'normal', type: '电子围栏' },
+                  { name: '实验楼后', status: 'warning', type: '微波探测' },
+                  { name: '西区车库', status: 'normal', type: '振动光缆' },
+                ].map((zone, i) => (
+                  <div key={i} className={`
+                    relative p-2 rounded border flex flex-col justify-between
+                    ${zone.status === 'warning' ? 'bg-red-900/10 border-red-500/30' : 'bg-green-900/5 border-green-500/20'}
+                  `}>
+                     <div className="flex justify-between items-start">
+                        <span className="text-[10px] text-gray-300">{zone.name}</span>
+                        <div className={`w-1.5 h-1.5 rounded-full ${zone.status === 'warning' ? 'bg-red-500 animate-ping' : 'bg-green-500'}`}></div>
+                     </div>
+                     <div className="text-[9px] text-gray-500">{zone.type}</div>
+                     <div className={`text-[10px] font-mono ${zone.status === 'warning' ? 'text-red-400' : 'text-green-400'}`}>
+                        {zone.status === 'warning' ? '入侵告警' : '布防中'}
+                     </div>
+                  </div>
                 ))}
              </div>
          </SciFiCard>
@@ -489,40 +558,67 @@ const App: React.FC = () => {
   const renderSecurityRight = () => (
      <>
       <div className="pointer-events-auto flex-1">
-         <SciFiCard title="消防告警系统" icon={<Flame />} alertLevel={mockAlerts.some(a => a.level === 'critical') ? 'critical' : 'none'} className="h-full">
-             <div className="grid grid-cols-2 gap-3 h-full items-center text-center">
-                <div className="bg-gradient-to-br from-red-900/20 to-transparent p-3 border border-red-500/20 h-full flex flex-col justify-center relative overflow-hidden">
-                   <div className="absolute top-0 right-0 w-8 h-8 border-t border-r border-red-500/30"></div>
-                   <div className="text-[10px] text-red-400 uppercase tracking-wider">烟感探测器</div>
-                   <div className="text-2xl font-sci text-white mt-2">1,240</div>
-                   <div className="text-[9px] text-green-500 bg-green-900/20 py-0.5 mt-2 rounded">系统正常</div>
+         <SciFiCard title="智慧消防中控" icon={<Flame />} alertLevel={mockAlerts.some(a => a.level === 'critical') ? 'critical' : 'none'} className="h-full">
+             <div className="flex h-full gap-4 items-center">
+                <div className="flex-1 space-y-3">
+                   <div className="flex justify-between items-center text-[10px]">
+                      <span className="text-gray-400">消防水压</span>
+                      <span className="text-cyan-300 font-mono">0.65 MPa</span>
+                   </div>
+                   <div className="w-full bg-gray-800 h-1 rounded-full overflow-hidden">
+                      <div className="bg-cyan-500 h-full w-[80%]"></div>
+                   </div>
+                   <div className="flex justify-between items-center text-[10px]">
+                      <span className="text-gray-400">烟感浓度 (Avg)</span>
+                      <span className="text-green-400 font-mono">0.02%</span>
+                   </div>
+                   <div className="w-full bg-gray-800 h-1 rounded-full overflow-hidden">
+                      <div className="bg-green-500 h-full w-[5%]"></div>
+                   </div>
                 </div>
-                <div className="bg-gradient-to-br from-orange-900/20 to-transparent p-3 border border-orange-500/20 h-full flex flex-col justify-center relative overflow-hidden">
-                   <div className="absolute bottom-0 left-0 w-8 h-8 border-b border-l border-orange-500/30"></div>
-                   <div className="text-[10px] text-orange-400 uppercase tracking-wider">手动报警</div>
-                   <div className="text-2xl font-sci text-white mt-2">0</div>
-                   <div className="text-[9px] text-gray-500 py-0.5 mt-2">无触发</div>
+                <div className="w-px h-20 bg-white/10"></div>
+                <div className="w-1/3 flex flex-col gap-2">
+                   <div className="bg-red-900/20 border border-red-500/30 p-1.5 rounded text-center">
+                      <div className="text-[9px] text-red-400">主机状态</div>
+                      <div className="text-xs text-white mt-1">正常</div>
+                   </div>
+                   <div className="bg-white/5 border border-white/10 p-1.5 rounded text-center">
+                      <div className="text-[9px] text-gray-400">故障屏蔽</div>
+                      <div className="text-xs text-white mt-1">0</div>
+                   </div>
                 </div>
              </div>
          </SciFiCard>
       </div>
       <div className="pointer-events-auto flex-[2]">
-         <SciFiCard title="安防设备健康度" icon={<Activity />} className="h-full">
+         <SciFiCard title="安保巡更管理" icon={<UserCheck />} className="h-full">
             <div className="flex flex-col h-full gap-2">
-               <div className="flex-1 relative">
-                  <DeviceStatusChart data={[
-                     {name: '监控', value: 98},
-                     {name: '门禁', value: 95},
-                     {name: '报警', value: 100},
-                     {name: '广播', value: 97},
-                  ]} />
+               {/* Map Placeholder */}
+               <div className="flex-1 bg-white/5 rounded border border-white/5 relative overflow-hidden group">
+                  <div className="absolute inset-0 opacity-20 bg-[radial-gradient(circle_at_50%_50%,rgba(6,182,212,0.4),transparent)]"></div>
+                  {/* Fake Map Grid */}
+                  <div className="absolute inset-0" style={{ backgroundImage: 'linear-gradient(#333 1px, transparent 1px), linear-gradient(90deg, #333 1px, transparent 1px)', backgroundSize: '20px 20px', opacity: 0.3 }}></div>
+                  
+                  {mockPatrols.map((p, i) => (
+                    <div key={p.id} className="absolute flex flex-col items-center" style={{ top: `${30 + i*20}%`, left: `${20 + i*30}%` }}>
+                       <MapPin size={16} className={`${p.status === 'charging' ? 'text-yellow-400' : 'text-green-400'} drop-shadow-lg`} />
+                       <span className="text-[8px] bg-black/80 px-1 rounded text-white mt-0.5 whitespace-nowrap">{p.name}</span>
+                    </div>
+                  ))}
                </div>
-               <div className="h-1/3 bg-white/5 border-t border-white/10 p-3 text-xs flex justify-between items-center">
-                  <span className="text-gray-400 uppercase tracking-widest">待维护设备</span>
-                  <div className="flex items-center gap-2">
-                     <span className="font-sci text-2xl text-yellow-400">03</span>
-                     <span className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse"></span>
-                  </div>
+
+               {/* Patrol List */}
+               <div className="h-1/3 overflow-y-auto custom-scrollbar">
+                  {mockPatrols.map(p => (
+                     <div key={p.id} className="flex justify-between items-center p-1.5 border-b border-white/5 text-[10px]">
+                        <div className="flex items-center gap-2">
+                           <div className={`w-1.5 h-1.5 rounded-full ${p.status === 'on-duty' ? 'bg-green-500' : 'bg-yellow-500'}`}></div>
+                           <span className="text-gray-300">{p.name}</span>
+                        </div>
+                        <span className="text-gray-500">{p.location}</span>
+                        <span className="font-mono text-cyan-400">{p.battery}% Bat</span>
+                     </div>
+                  ))}
                </div>
             </div>
          </SciFiCard>
