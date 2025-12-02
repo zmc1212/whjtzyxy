@@ -67,7 +67,7 @@ export const SciFiCard: React.FC<SciFiCardProps> = ({ title, children, className
       {/* Header */}
       <div className="relative z-10 flex items-center gap-2 px-5 py-3 border-b border-white/5 mx-1">
         <div className={`p-1 rounded bg-${alertLevel === 'critical' ? 'red' : 'cyan'}-500/10`}>
-           {icon && React.cloneElement(icon as React.ReactElement, { size: 14, className: alertLevel === 'critical' ? 'text-red-400' : 'text-neon-cyan' })}
+           {icon && React.isValidElement(icon) ? React.cloneElement(icon as React.ReactElement<any>, { size: 14, className: alertLevel === 'critical' ? 'text-red-400' : 'text-neon-cyan' }) : icon}
         </div>
         <h3 className={`font-sci text-sm tracking-wider uppercase font-semibold flex-1 ${alertLevel === 'critical' ? 'text-red-100' : 'text-cyan-50'}`}>
           {title}
